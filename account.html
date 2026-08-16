@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Account — Afrishop</title>
+<meta name="description" content="Log in or create an Afrishop account to shop or start selling.">
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Account — Afrishop">
+<meta property="og:description" content="Log in or create an Afrishop account to shop or start selling.">
+<meta property="og:site_name" content="Afrishop">
+<meta name="twitter:card" content="summary">
+
+<link rel="stylesheet" href="/css/styles.css">
+<style>
+  .auth-wrap{ max-width:420px; margin:50px auto; }
+  .tab-row{ display:flex; gap:6px; background:var(--cream-dim); border-radius:9px; padding:3px; margin-bottom:22px; }
+  .tab-row button{ flex:1; border:none; background:none; font-size:13px; font-weight:600; padding:9px; border-radius:7px; color:var(--ink-soft); }
+  .tab-row button.active{ background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,0.08); }
+  .role-row{ display:flex; gap:10px; margin-bottom:16px; }
+  .role-opt{ flex:1; text-align:center; padding:10px; border:1.5px solid var(--line); border-radius:9px; font-size:12.5px; font-weight:600; cursor:pointer; }
+  .role-opt.active{ border-color:var(--indigo-950); background:var(--cream-dim); }
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap"><nav>
+  <a href="/" class="store-logo"><span class="mark"></span>Afrishop</a>
+  <div class="nav-links"><a href="/">Shop</a><a href="/orders">My orders</a></div>
+  <div></div>
+</nav></div></header>
+
+<div class="wrap"><div class="auth-wrap" id="content"><div class="skeleton" style="height:300px;"></div></div></div>
+<footer class="site">© 2026 Afrishop.</footer>
+<script src="/js/api.js"></script>
+<script>
+  let role = 'customer';
+  async function init() {
+    const { user } = await API.get('/auth/me');
+    const content = document.getElementById('content');
+    if (user) {
+      content.innerHTML = `
+        <div class="card">
+          <h2 style="font-size:19px;margin-bottom:16px;">My account</h2>
+          <div style="font-size:13.5px;color:var(--ink-soft);line-height:2;">
+            <div><strong style="color:var(--ink);">${user.full_name}</strong></div>
+            <div>${user.email}</div>
+            <div>${user.phone || 'No phone on file'}</div>
+            <div>Role: <span class="badge active">${user.role}</span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:20px;">
+            <a href="/orders" class="btn btn-outline btn-block">Order history</a>
+            ${user.role === 'seller' ? '<a href="/seller/dashboard" class="btn btn-primary btn-block">Seller dashboard</a>' : ''}
+            ${user.role === 'admin' ? '<a href="/admin/dashboard" class="btn btn-primary btn-block">Admin dashboard</a>' : ''}
+            <button class="btn btn-outline btn-block" onclick="logout()">Log out</button>
+          </div>
+        </div>`;
+      return;
+    }
+    renderForm('login');
+  }
+
+  function renderForm(mode) {
+    const content = document.getElementById('content');
+    content.innerHTML = `
+      <div class="card">
+        <div class="tab-row">
+          <button class="${mode==='login'?'active':''}" onclick="renderForm('login')">Log in</button>
+          <button class="${mode==='signup'?'active':''}" onclick="renderForm('signup')">Sign up</button>
+        </div>
+        <div id="errorSlot"></div>
+        ${mode === 'signup' ? `
+          <div class="role-row">
+            <div class="role-opt active" data-role="customer" onclick="selectRole(this)">Shop as customer</div>
+            <div class="role-opt" data-role="seller" onclick="selectRole(this)">Sell on Afrishop</div>
+          </div>
+          <div class="field"><label>Full name</label><input id="f_name" placeholder="Jane Wanjiru"></div>
+          <div class="field"><label>Phone (Kenyan)</label><input id="f_phone" placeholder="07XXXXXXXX"></div>
+        ` : ''}
+        <div class="field"><label>Email</label><input id="f_email" type="email" placeholder="you@email.com"></div>
+        <div class="field"><label>Password</label><input id="f_password" type="password" placeholder="At least 8 characters"></div>
+        <button class="btn btn-primary btn-block" onclick="${mode==='login'?'doLogin()':'doSignup()'}">${mode==='login'?'Log in':'Create account'}</button>
+      </div>`;
+  }
+  function selectRole(el) {
+    document.querySelectorAll('.role-opt').forEach(o => o.classList.remove('active'));
+    el.classList.add('active');
+    role = el.dataset.role;
+  }
+
+  async function doLogin() {
+    const errorSlot = document.getElementById('errorSlot');
+    try {
+      await API.post('/auth/login', { email: document.getElementById('f_email').value, password: document.getElementById('f_password').value });
+      location.href = '/';
+    } catch (e) { errorSlot.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+  }
+  async function doSignup() {
+    const errorSlot = document.getElementById('errorSlot');
+    try {
+      const user = await API.post('/auth/signup', {
+        full_name: document.getElementById('f_name').value,
+        phone: document.getElementById('f_phone').value,
+        email: document.getElementById('f_email').value,
+        password: document.getElementById('f_password').value,
+        role,
+      });
+      location.href = user.role === 'seller' ? '/seller/dashboard' : '/';
+    } catch (e) { errorSlot.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+  }
+  async function logout() { await API.post('/auth/logout'); location.href = '/'; }
+  init();
+</script>
+</body>
+</html>

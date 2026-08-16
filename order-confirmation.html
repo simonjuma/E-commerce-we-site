@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Order Confirmed — Afrishop</title>
+<meta name="description" content="Your Afrishop order has been placed and is awaiting payment confirmation.">
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Order Confirmed — Afrishop">
+<meta property="og:description" content="Your Afrishop order has been placed and is awaiting payment confirmation.">
+<meta property="og:site_name" content="Afrishop">
+<meta name="twitter:card" content="summary">
+
+<link rel="stylesheet" href="/css/styles.css">
+<style>
+  .confirm-wrap{ max-width:480px; margin:60px auto; text-align:center; }
+  .confirm-icon{ width:60px; height:60px; border-radius:50%; background:var(--marigold); color:var(--indigo-950); font-size:26px; display:flex; align-items:center; justify-content:center; margin:0 auto 20px; }
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap"><nav><a href="/" class="store-logo"><span class="mark"></span>Afrishop</a></nav></div></header>
+<div class="wrap"><div class="confirm-wrap">
+  <div class="confirm-icon">✓</div>
+  <h1 style="font-size:24px;margin-bottom:8px;">Order placed</h1>
+  <p style="color:var(--ink-soft);font-size:14px;margin-bottom:20px;" id="statusNote">Your order has been received and is awaiting payment confirmation.</p>
+  <div class="card" style="text-align:left;">
+    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px;"><span>Order number</span><strong class="mono" id="orderNum">—</strong></div>
+    <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13.5px;"><span>Status</span><span id="statusBadge"></span></div>
+  </div>
+  <a href="/orders" class="btn btn-primary" style="margin-top:20px;">View my orders</a>
+  <a href="/" class="btn btn-outline" style="margin-top:10px;">Continue shopping</a>
+</div></div>
+<script src="/js/api.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const paypalOrderId = params.get('token'); // PayPal appends ?token=<order id> on return from PAYPAL_RETURN_URL
+  let num = params.get('order') || sessionStorage.getItem('afrishop_pending_order');
+
+  async function init() {
+    document.getElementById('orderNum').textContent = num || '—';
+
+    if (paypalOrderId) {
+      // Customer approved on PayPal's site and was redirected back here —
+      // capture the payment now to actually collect the funds.
+      document.getElementById('statusNote').textContent = 'Confirming your PayPal payment...';
+      try {
+        const result = await API.post('/payments/paypal/capture/' + paypalOrderId, {});
+        if (result.success) {
+          document.getElementById('statusNote').textContent = 'Payment confirmed — thank you!';
+          document.getElementById('statusBadge').innerHTML = '<span class="badge paid">Paid</span>';
+          sessionStorage.removeItem('afrishop_pending_order');
+          return;
+        }
+      } catch (e) {
+        document.getElementById('statusNote').textContent = 'We could not confirm this payment automatically. Check "My Orders" for the latest status, or contact support.';
+      }
+    }
+    document.getElementById('statusBadge').innerHTML = '<span class="badge pending">Pending payment</span>';
+  }
+  init();
+</script>
+</body>
+</html>

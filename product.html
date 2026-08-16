@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Product — Afrishop</title>
+<meta name="description" content="Browse product details, pricing, and reviews on Afrishop, Kenya's marketplace for independent sellers.">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Product — Afrishop">
+<meta property="og:description" content="Browse product details, pricing, and reviews on Afrishop, Kenya's marketplace for independent sellers.">
+<meta property="og:site_name" content="Afrishop">
+<meta name="twitter:card" content="summary">
+
+<link rel="stylesheet" href="/css/styles.css">
+<style>
+  .pd-grid{ display:grid; grid-template-columns:1fr 1fr; gap:48px; }
+  @media (max-width:860px){ .pd-grid{ grid-template-columns:1fr; gap:24px; } }
+  .pd-gallery-main{ aspect-ratio:1; border-radius:var(--radius-l); margin-bottom:12px; }
+  .breadcrumb{ font-size:12.5px; color:var(--ink-faint); margin-bottom:18px; }
+  .pd-title h1{ font-size:26px; margin-bottom:6px; }
+  .pd-store{ font-size:13px; color:var(--ink-soft); margin-bottom:16px; }
+  .pd-price{ font-size:24px; font-weight:700; margin-bottom:18px; }
+  .pd-price .strike{ font-size:15px; color:var(--ink-faint); text-decoration:line-through; font-weight:500; margin-left:8px; }
+  .pd-desc{ font-size:14.5px; color:var(--ink-soft); line-height:1.7; margin-bottom:22px; }
+  .qty-row{ display:flex; align-items:center; gap:14px; margin-bottom:20px; }
+  .qty-control{ display:flex; align-items:center; border:1px solid var(--line); border-radius:9px; }
+  .qty-control button{ width:36px; height:36px; background:none; border:none; font-size:15px; }
+  .qty-control span{ width:32px; text-align:center; font-weight:600; font-size:14px; }
+  .pd-actions{ display:flex; gap:12px; }
+  .review{ padding:14px 0; border-top:1px solid var(--line); }
+  .review .stars{ color:var(--marigold); font-size:12.5px; margin-bottom:4px; }
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap"><nav>
+  <a href="/" class="store-logo"><span class="mark"></span>Afrishop</a>
+  <div class="nav-links"><a href="/">Shop</a><a href="/orders">My orders</a></div>
+  <div class="nav-right" id="authNavSlot"></div>
+  <a href="/cart" class="icon-btn">🛒<span class="cart-count" id="cartCount" style="display:none;">0</span></a>
+</nav></div></header>
+
+<div class="wrap" style="padding-top:24px;" id="content">
+  <div class="skeleton" style="height:400px;"></div>
+</div>
+
+<footer class="site">© 2026 Afrishop.</footer>
+<script src="/js/api.js"></script>
+<script>
+  renderAuthNav(); refreshCartCount();
+  const id = new URLSearchParams(location.search).get('id');
+  let qty = 1;
+
+  async function load() {
+    if (!id) { document.getElementById('content').innerHTML = `<div class="empty-state"><h3>No product specified</h3></div>`; return; }
+    try {
+      const p = await API.get('/products/' + id);
+      document.title = `${p.name} — ${p.store_name} | Afrishop`;
+      const desc = (p.description || `${p.name} from ${p.store_name} on Afrishop.`).slice(0, 155);
+      document.querySelector('meta[name="description"]')?.setAttribute('content', desc);
+      document.querySelector('meta[property="og:title"]')?.setAttribute('content', p.name);
+      document.querySelector('meta[property="og:description"]')?.setAttribute('content', desc);
+      if (p.image) document.querySelector('meta[property="og:image"]')?.setAttribute('content', location.origin + p.image);
+      document.getElementById('content').innerHTML = `
+        <div class="breadcrumb"><a href="/">Shop</a> / ${p.name}</div>
+        <div class="pd-grid">
+          <div><div class="pd-gallery-main ${p.image ? '' : 'thumb-' + ((p.id % 6) + 1)}">${p.image ? `<img src="${p.image}" alt="${p.name}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">` : ''}</div></div>
+          <div class="pd-title">
+            <h1>${p.name}</h1>
+            <div class="pd-store">Sold by <a href="/?store=${p.store_slug}">${p.store_name}</a></div>
+            <div class="pd-price">${fmtKES(p.sale_price_kes || p.price_kes)}${p.sale_price_kes ? `<span class="strike">${fmtKES(p.price_kes)}</span>` : ''}</div>
+            <p class="pd-desc">${p.description || 'No description provided by the seller yet.'}</p>
+            <div class="qty-row">
+              <div class="qty-control"><button onclick="changeQty(-1)">−</button><span id="qtyVal">1</span><button onclick="changeQty(1)">+</button></div>
+              <span style="font-size:12.5px; font-weight:600; color:${p.stock > 0 ? 'var(--leaf)' : 'var(--kola)'};">${p.stock > 0 ? '● ' + p.stock + ' in stock' : 'Out of stock'}</span>
+            </div>
+            <div class="pd-actions">
+              <button class="btn btn-primary" style="flex:1;" ${p.stock === 0 ? 'disabled' : ''} onclick="addToCart(${p.id})">Add to cart</button>
+              <button class="icon-btn" style="width:48px;height:48px;" onclick="addToWishlist(${p.id})">♡</button>
+            </div>
+            <div style="margin-top:28px;">
+              <h3 style="font-size:16px; margin-bottom:8px;">Reviews (${p.reviews.length})</h3>
+              ${p.reviews.length === 0 ? '<p style="font-size:13px;color:var(--ink-faint);">No reviews yet.</p>' :
+                p.reviews.map(r => `<div class="review"><div class="stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</div><div style="font-size:13px;">${r.comment || ''}</div><div style="font-size:11.5px;color:var(--ink-faint);margin-top:4px;">${r.full_name}</div></div>`).join('')}
+            </div>
+          </div>
+        </div>`;
+    } catch (e) {
+      document.getElementById('content').innerHTML = `<div class="empty-state"><div class="ic">⚠️</div><h3>Couldn't load this product</h3><p>${e.message}</p></div>`;
+    }
+  }
+  function changeQty(d){ qty = Math.max(1, qty + d); document.getElementById('qtyVal').textContent = qty; }
+
+  async function addToCart(productId) {
+    try {
+      await API.post('/cart/items', { product_id: productId, quantity: qty });
+      toast('Added to cart');
+      refreshCartCount();
+    } catch (e) {
+      if (e.message === 'Not authenticated') { toast('Log in to add items to your cart'); setTimeout(() => location.href = '/account', 900); }
+      else toast(e.message);
+    }
+  }
+  async function addToWishlist(productId) {
+    try { await API.post('/wishlist', { product_id: productId }); toast('Added to wishlist'); }
+    catch (e) { if (e.message === 'Not authenticated') { toast('Log in to save items'); setTimeout(() => location.href = '/account', 900); } else toast(e.message); }
+  }
+  load();
+</script>
+</body>
+</html>

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seller Dashboard — Afrishop</title>
+<meta name="description" content="Manage your store, products, and orders on Afrishop.">
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Seller Dashboard — Afrishop">
+<meta property="og:description" content="Manage your store, products, and orders on Afrishop.">
+<meta property="og:site_name" content="Afrishop">
+<meta name="twitter:card" content="summary">
+
+<link rel="stylesheet" href="/css/styles.css">
+<style>
+  .app{ display:grid; grid-template-columns:220px 1fr; min-height:100vh; }
+  @media (max-width:860px){ .app{ grid-template-columns:1fr; } .sidebar{ display:none; } }
+  .sidebar{ background:var(--indigo-950); color:#fff; padding:20px 14px; }
+  .side-logo{ font-family:'Fraunces',serif; font-weight:650; font-size:16px; margin-bottom:22px; padding:0 8px; }
+  .nav-item{ display:block; width:100%; text-align:left; padding:10px 12px; border-radius:9px; color:rgba(255,255,255,0.68); font-size:13.5px; font-weight:500; background:none; border:none; margin-bottom:2px; }
+  .nav-item:hover{ background:rgba(255,255,255,0.06); color:#fff; }
+  .nav-item.active{ background:rgba(255,255,255,0.1); color:#fff; }
+  main{ padding:24px 28px; }
+  .stat-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+  @media (max-width:760px){ .stat-grid{ grid-template-columns:1fr 1fr; } }
+  .stat-card{ padding:18px; }
+  .stat-card .label{ font-size:12px; color:var(--ink-soft); margin-bottom:8px; }
+  .stat-card .value{ font-family:'Fraunces',serif; font-size:22px; }
+  table{ width:100%; border-collapse:collapse; }
+  th{ text-align:left; font-size:11px; text-transform:uppercase; color:var(--ink-faint); padding:0 10px 10px; }
+  td{ padding:11px 10px; font-size:13.5px; border-top:1px solid var(--line); }
+  .panel-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+  .modal-overlay{ position:fixed; inset:0; background:rgba(14,13,42,0.4); display:none; align-items:center; justify-content:center; z-index:100; padding:20px; }
+  .modal-overlay.open{ display:flex; }
+  .modal{ background:#fff; border-radius:16px; padding:26px; width:100%; max-width:440px; max-height:88vh; overflow-y:auto; }
+  select{ width:100%; padding:11px 13px; border-radius:9px; border:1px solid var(--line); font-size:13.5px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="side-logo">Afrishop Seller</div>
+    <button class="nav-item active" data-view="overview" onclick="setView(this)">Overview</button>
+    <button class="nav-item" data-view="products" onclick="setView(this)">Products</button>
+    <button class="nav-item" data-view="orders" onclick="setView(this)">Orders</button>
+    <button class="nav-item" data-view="settings" onclick="setView(this)">Store settings</button>
+    <div style="height:1px;background:rgba(255,255,255,0.1);margin:14px 0;"></div>
+    <a href="/" class="nav-item" style="display:block;">← Back to shop</a>
+    <button class="nav-item" onclick="logout()">Log out</button>
+  </aside>
+  <main id="content"><div class="skeleton" style="height:300px;"></div></main>
+</div>
+
+<div class="modal-overlay" id="modalOverlay"><div class="modal" id="modalBody"></div></div>
+
+<script src="/js/api.js"></script>
+<script>
+  let currentView = 'overview';
+  let store = null;
+
+  function openModal(html) { document.getElementById('modalBody').innerHTML = html; document.getElementById('modalOverlay').classList.add('open'); }
+  function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+
+  async function boot() {
+    const { user } = await API.get('/auth/me');
+    if (!user) return location.href = '/account';
+    if (user.role !== 'seller') { document.getElementById('content').innerHTML = `<div class="empty-state"><h3>This area is for sellers</h3><a href="/" class="btn btn-primary">Back to shop</a></div>`; return; }
+    store = await API.get('/seller/store');
+    if (!store) return renderCreateStore();
+    renderView();
+  }
+
+  function renderCreateStore() {
+    document.getElementById('content').innerHTML = `
+      <div class="card" style="max-width:480px;">
+        <h2 style="font-size:19px;margin-bottom:16px;">Create your store</h2>
+        <div id="errorSlot"></div>
+        <div class="field"><label>Store name</label><input id="s_name" placeholder="e.g. Amaka Textiles"></div>
+        <div class="field"><label>Description</label><textarea id="s_desc" rows="3" placeholder="What do you sell?"></textarea></div>
+        <div class="field"><label>County</label><input id="s_county" placeholder="Nairobi"></div>
+        <div class="field"><label>Town</label><input id="s_town" placeholder="Westlands"></div>
+        <button class="btn btn-primary btn-block" onclick="createStore()">Create store</button>
+      </div>`;
+  }
+  async function createStore() {
+    const errorSlot = document.getElementById('errorSlot');
+    try {
+      await API.post('/seller/store', {
+        name: document.getElementById('s_name').value,
+        description: document.getElementById('s_desc').value,
+        county: document.getElementById('s_county').value,
+        town: document.getElementById('s_town').value,
+      });
+      store = await API.get('/seller/store');
+      renderView();
+    } catch (e) { errorSlot.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+  }
+
+  function setView(el) {
+    document.querySelectorAll('.nav-item[data-view]').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    currentView = el.dataset.view;
+    renderView();
+  }
+
+  async function renderView() {
+    const el = document.getElementById('content');
+    el.innerHTML = `<div class="skeleton" style="height:300px;"></div>`;
+    if (currentView === 'overview') return renderOverview();
+    if (currentView === 'products') return renderProducts();
+    if (currentView === 'orders') return renderOrders();
+    if (currentView === 'settings') return renderSettings();
+  }
+
+  async function renderOverview() {
+    const el = document.getElementById('content');
+    try {
+      const stats = await API.get('/seller/stats');
+      el.innerHTML = `
+        <h1 style="font-size:22px;margin-bottom:18px;">Overview — ${store.name}</h1>
+        <div class="stat-grid">
+          <div class="card stat-card"><div class="label">Revenue</div><div class="value">${fmtKES(stats.revenue_kes)}</div></div>
+          <div class="card stat-card"><div class="label">Orders</div><div class="value">${stats.order_count}</div></div>
+          <div class="card stat-card"><div class="label">Products</div><div class="value">${stats.product_count}</div></div>
+          <div class="card stat-card"><div class="label">Low stock</div><div class="value">${stats.low_stock.length}</div></div>
+        </div>
+        ${stats.low_stock.length ? `<div class="card"><h3 style="font-size:15px;margin-bottom:12px;">Low stock alerts</h3>${stats.low_stock.map(p => `<div style="font-size:13.5px;padding:8px 0;border-top:1px solid var(--line);">${p.name} — ${p.quantity} left</div>`).join('')}</div>` : ''}`;
+    } catch (e) { el.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+  }
+
+  async function renderProducts() {
+    const el = document.getElementById('content');
+    try {
+      const products = await API.get('/seller/products');
+      el.innerHTML = `
+        <div class="panel-head"><h1 style="font-size:22px;">Products</h1><button class="btn btn-primary btn-sm" onclick="openProductModal()">+ Add product</button></div>
+        <div class="card">
+          ${products.length === 0 ? `<div class="empty-state"><div class="ic">🏷️</div><h3>No products yet</h3><p>Add your first product to start selling.</p></div>` : `
+          <table><thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr></thead><tbody>
+          ${products.map(p => `<tr>
+            <td style="display:flex;align-items:center;gap:10px;">${p.image ? `<img src="${p.image}" alt="${p.name}" style="width:34px;height:34px;border-radius:7px;object-fit:cover;">` : `<div style="width:34px;height:34px;border-radius:7px;background:var(--cream-dim);"></div>`}${p.name}</td>
+            <td>${fmtKES(p.sale_price_kes || p.price_kes)}</td>
+            <td>${p.stock}</td>
+            <td>${p.is_active ? '<span class="badge active">Active</span>' : '<span class="badge suspended">Hidden</span>'}</td>
+            <td style="display:flex;gap:8px;">
+              <button class="btn btn-outline btn-sm" onclick='openProductModal(${JSON.stringify(p)})'>Edit</button>
+              <button class="btn btn-outline btn-sm" onclick="deleteProduct(${p.id})">Delete</button>
+            </td>
+          </tr>`).join('')}
+          </tbody></table>`}
+        </div>`;
+    } catch (e) { el.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+  }
+
+  function openProductModal(p) {
+    const editing = !!p;
+    openModal(`
+      <h2 style="font-size:18px;margin-bottom:16px;">${editing ? 'Edit product' : 'Add product'}</h2>
+      <div id="modalError"></div>
+      <div class="field"><label>Name</label><input id="p_name" value="${editing ? p.name : ''}"></div>
+      <div class="field"><label>Description</label><textarea id="p_desc" rows="2">${editing ? (p.description||'') : ''}</textarea></div>
+      <div class="field"><label>Price (KES)</label><input id="p_price" type="number" value="${editing ? p.price_kes : ''}"></div>
+      <div class="field"><label>Sale price (KES, optional)</label><input id="p_sale" type="number" value="${editing && p.sale_price_kes ? p.sale_price_kes : ''}"></div>
+      <div class="field"><label>Stock quantity</label><input id="p_stock" type="number" value="${editing ? p.stock : 0}"></div>
+      <div class="field">
+        <label>Product image</label>
+        <input id="p_image_file" type="file" accept="image/png,image/jpeg,image/webp">
+        <div id="imagePreviewWrap" style="margin-top:8px;">${editing && p.image ? `<img src="${p.image}" style="width:70px;height:70px;border-radius:8px;object-fit:cover;">` : ''}</div>
+        <input type="hidden" id="p_image_url" value="${editing && p.image ? p.image : ''}">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:6px;">
+        <button class="btn btn-outline btn-block" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary btn-block" id="saveProductBtn" onclick="saveProduct(${editing ? p.id : 'null'})">${editing ? 'Save changes' : 'Add product'}</button>
+      </div>`);
+    document.getElementById('p_image_file').addEventListener('change', handleImageSelect);
+  }
+
+  function handleImageSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5_000_000) { toast('Image must be under 5MB'); e.target.value = ''; return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const preview = document.getElementById('imagePreviewWrap');
+      preview.innerHTML = `<img src="${reader.result}" style="width:70px;height:70px;border-radius:8px;object-fit:cover;opacity:0.5;">`;
+      try {
+        const { url } = await API.post('/seller/uploads', { image_base64: reader.result });
+        document.getElementById('p_image_url').value = url;
+        preview.innerHTML = `<img src="${url}" style="width:70px;height:70px;border-radius:8px;object-fit:cover;">`;
+      } catch (err) { toast(err.message); preview.innerHTML = ''; }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function saveProduct(id) {
+    const modalError = document.getElementById('modalError');
+    const body = {
+      name: document.getElementById('p_name').value,
+      description: document.getElementById('p_desc').value,
+      price_kes: Number(document.getElementById('p_price').value),
+      sale_price_kes: document.getElementById('p_sale').value ? Number(document.getElementById('p_sale').value) : null,
+      stock: Number(document.getElementById('p_stock').value),
+      image_url: document.getElementById('p_image_url').value || undefined,
+    };
+    try {
+      if (id) await API.patch('/seller/products/' + id, body);
+      else await API.post('/seller/products', body);
+      closeModal(); renderProducts();
+    } catch (e) { modalError.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+  }
+  async function deleteProduct(id) {
+    if (!confirm('Delete this product? This cannot be undone.')) return;
+    try { await API.del('/seller/products/' + id); renderProducts(); } catch (e) { toast(e.message); }
+  }
+
+  async function renderOrders() {
+    const el = document.getElementById('content');
+    try {
+      const orders = await API.get('/seller/orders');
+      el.innerHTML = `<h1 style="font-size:22px;margin-bottom:18px;">Orders</h1>
+        <div class="card">
+        ${orders.length === 0 ? `<div class="empty-state"><div class="ic">🧾</div><h3>No orders yet</h3></div>` : `
+        <table><thead><tr><th>Order</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead><tbody>
+        ${orders.map(o => `<tr>
+          <td class="mono">#${o.order_number}</td>
+          <td>${o.customer_name}</td>
+          <td>${fmtKES(o.total_kes)}</td>
+          <td><select onchange="updateOrderStatus(${o.id}, this.value)">
+            ${['pending','paid','processing','shipped','delivered','cancelled','refunded'].map(s => `<option value="${s}" ${o.status===s?'selected':''}>${s}</option>`).join('')}
+          </select></td>
+        </tr>`).join('')}
+        </tbody></table>`}
+        </div>`;
+    } catch (e) { el.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+  }
+  async function updateOrderStatus(id, status) {
+    try { await API.patch('/seller/orders/' + id + '/status', { status }); toast('Order updated'); } catch (e) { toast(e.message); }
+  }
+
+  async function renderSettings() {
+    const el = document.getElementById('content');
+    el.innerHTML = `
+      <h1 style="font-size:22px;margin-bottom:18px;">Store settings</h1>
+      <div class="card" style="max-width:480px;">
+        <div id="errorSlot"></div>
+        <div class="field"><label>Store name</label><input id="s_name" value="${store.name}"></div>
+        <div class="field"><label>Description</label><textarea id="s_desc" rows="3">${store.description || ''}</textarea></div>
+        <div class="field"><label>County</label><input id="s_county" value="${store.county || ''}"></div>
+        <div class="field"><label>Town</label><input id="s_town" value="${store.town || ''}"></div>
+        <button class="btn btn-primary btn-block" onclick="saveSettings()">Save changes</button>
+      </div>`;
+  }
+  async function saveSettings() {
+    const errorSlot = document.getElementById('errorSlot');
+    try {
+      await API.patch('/seller/store', {
+        name: document.getElementById('s_name').value,
+        description: document.getElementById('s_desc').value,
+        county: document.getElementById('s_county').value,
+        town: document.getElementById('s_town').value,
+      });
+      store = await API.get('/seller/store');
+      toast('Store updated');
+    } catch (e) { errorSlot.innerHTML = `<div class="alert alert-error">${e.message}</div>`; }
+  }
+
+  async function logout() { await API.post('/auth/logout'); location.href = '/'; }
+  boot();
+</script>
+</body>
+</html>

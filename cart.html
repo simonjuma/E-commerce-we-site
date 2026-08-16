@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Cart — Afrishop</title>
+<meta name="description" content="Review the items in your Afrishop cart before checkout.">
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Your Cart — Afrishop">
+<meta property="og:description" content="Review the items in your Afrishop cart before checkout.">
+<meta property="og:site_name" content="Afrishop">
+<meta name="twitter:card" content="summary">
+
+<link rel="stylesheet" href="/css/styles.css">
+<style>
+  .cart-grid{ display:grid; grid-template-columns:1.6fr 1fr; gap:24px; align-items:start; }
+  @media (max-width:860px){ .cart-grid{ grid-template-columns:1fr; } }
+  .cart-item{ display:flex; gap:14px; padding:16px 0; border-bottom:1px solid var(--line); align-items:center; }
+  .cart-thumb{ width:70px; height:70px; border-radius:10px; flex-shrink:0; }
+  .cart-item-info{ flex:1; }
+  .cart-item-info .name{ font-size:14px; font-weight:600; margin-bottom:4px; }
+  .cart-item-info .store{ font-size:11.5px; color:var(--ink-faint); }
+  .qty-control{ display:flex; align-items:center; border:1px solid var(--line); border-radius:9px; }
+  .qty-control button{ width:32px; height:32px; background:none; border:none; font-size:14px; }
+  .qty-control span{ width:26px; text-align:center; font-weight:600; font-size:13px; }
+  .remove-btn{ font-size:12px; color:var(--kola); font-weight:600; background:none; border:none; margin-top:6px; }
+  .sum-row{ display:flex; justify-content:space-between; font-size:13.5px; margin-bottom:10px; color:var(--ink-soft); }
+  .sum-row.total{ font-size:17px; font-weight:700; color:var(--ink); margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
+</style>
+</head>
+<body>
+<header class="site"><div class="wrap"><nav>
+  <a href="/" class="store-logo"><span class="mark"></span>Afrishop</a>
+  <div class="nav-links"><a href="/">Shop</a><a href="/orders">My orders</a></div>
+  <div class="nav-right" id="authNavSlot"></div>
+  <a href="/cart" class="icon-btn">🛒<span class="cart-count" id="cartCount" style="display:none;">0</span></a>
+</nav></div></header>
+
+<section class="wrap">
+  <h1 style="font-size:24px; margin-bottom:24px;">Your cart</h1>
+  <div id="content"><div class="skeleton" style="height:200px;"></div></div>
+</section>
+
+<footer class="site">© 2026 Afrishop.</footer>
+<script src="/js/api.js"></script>
+<script>
+  renderAuthNav(); refreshCartCount();
+
+  async function load() {
+    const content = document.getElementById('content');
+    try {
+      const { user } = await API.get('/auth/me');
+      if (!user) { content.innerHTML = `<div class="empty-state"><div class="ic">🔒</div><h3>Log in to view your cart</h3><p>Your cart is saved to your account.</p><a href="/account" class="btn btn-primary">Log in</a></div>`; return; }
+
+      const cart = await API.get('/cart');
+      if (cart.items.length === 0) {
+        content.innerHTML = `<div class="empty-state"><div class="ic">🛒</div><h3>Your cart is empty</h3><p>Browse products and add something you like.</p><a href="/" class="btn btn-primary">Start shopping</a></div>`;
+        return;
+      }
+      content.innerHTML = `<div class="cart-grid">
+        <div class="card" id="itemsCard">${renderItems(cart.items)}</div>
+        <div class="card">
+          <div class="sum-row"><span>Subtotal</span><span>${fmtKES(cart.subtotal)}</span></div>
+          <div class="sum-row"><span>Delivery</span><span>Calculated at checkout</span></div>
+          <div class="sum-row total"><span>Total</span><span>${fmtKES(cart.subtotal)}</span></div>
+          <a href="/checkout" class="btn btn-primary btn-block" style="margin-top:14px;">Proceed to checkout</a>
+        </div>
+      </div>`;
+    } catch (e) {
+      content.innerHTML = `<div class="empty-state"><div class="ic">⚠️</div><h3>Couldn't load your cart</h3><p>${e.message}</p></div>`;
+    }
+  }
+
+  function renderItems(items) {
+    return items.map(i => `
+      <div class="cart-item" data-pid="${i.product_id}">
+        <div class="cart-thumb thumb-${(i.product_id % 6) + 1}"></div>
+        <div class="cart-item-info">
+          <div class="name">${i.name}</div>
+          <div class="store">${fmtKES(i.sale_price_kes || i.price_kes)} each</div>
+          <button class="remove-btn" onclick="removeItem(${i.product_id})">Remove</button>
+        </div>
+        <div class="qty-control">
+          <button onclick="updateQty(${i.product_id}, ${i.quantity - 1})">−</button>
+          <span>${i.quantity}</span>
+          <button onclick="updateQty(${i.product_id}, ${i.quantity + 1})">+</button>
+        </div>
+        <strong>${fmtKES((i.sale_price_kes || i.price_kes) * i.quantity)}</strong>
+      </div>`).join('');
+  }
+
+  async function updateQty(productId, qty) {
+    try { await API.patch('/cart/items/' + productId, { quantity: qty }); refreshCartCount(); load(); }
+    catch (e) { toast(e.message); }
+  }
+  async function removeItem(productId) {
+    try { await API.del('/cart/items/' + productId); refreshCartCount(); load(); }
+    catch (e) { toast(e.message); }
+  }
+  load();
+</script>
+</body>
+</html>

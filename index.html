@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Afrishop — Shop Kenyan sellers, all in one place</title>
+<meta name="description" content="Shop fashion, beauty, food and crafts from independent Kenyan sellers, with M-Pesa checkout built in.">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Afrishop — Shop Kenyan sellers, all in one place">
+<meta property="og:description" content="Shop fashion, beauty, food and crafts from independent Kenyan sellers, with M-Pesa checkout built in.">
+<meta property="og:site_name" content="Afrishop">
+<meta name="twitter:card" content="summary">
+
+<link rel="stylesheet" href="/css/styles.css">
+<style>
+  .hero{ background:linear-gradient(120deg,var(--indigo-950),var(--indigo-700)); color:#fff; padding:56px 0; }
+  .hero h1{ font-size:clamp(28px,4vw,42px); }
+  .hero p{ margin-top:12px; color:rgba(255,255,255,0.65); max-width:440px; font-size:15px; }
+  .search-row{ display:flex; gap:10px; margin-top:24px; max-width:520px; }
+  .search-row input{ flex:1; padding:13px 16px; border-radius:100px; border:none; font-size:14px; }
+  .cat-row{ display:flex; gap:10px; margin-bottom:26px; flex-wrap:wrap; }
+  .cat-chip{ padding:9px 17px; border-radius:100px; background:#fff; border:1px solid var(--line); font-size:13px; font-weight:600; color:var(--ink-soft); }
+  .cat-chip.active{ background:var(--indigo-950); color:#fff; border-color:var(--indigo-950); }
+  .product-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:20px; }
+  @media (max-width:960px){ .product-grid{ grid-template-columns:repeat(2,1fr); } }
+  .product-card{ background:#fff; border-radius:var(--radius-m); overflow:hidden; box-shadow:var(--shadow-card); border:1px solid var(--line); transition:transform .18s; }
+  .product-card:hover{ transform:translateY(-3px); }
+  .product-thumb{ aspect-ratio:1; position:relative; }
+  .sale-tag{ position:absolute; top:10px; left:10px; background:var(--kola); color:#fff; font-size:10.5px; font-weight:700; padding:4px 9px; border-radius:100px; }
+  .product-info{ padding:14px; }
+  .product-info .store{ font-size:11px; color:var(--ink-faint); margin-bottom:4px; }
+  .product-info h3{ font-family:'IBM Plex Sans'; font-size:14px; font-weight:600; margin-bottom:5px; }
+  .price-row{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .price{ font-size:14.5px; font-weight:700; }
+  .price-strike{ font-size:12px; color:var(--ink-faint); text-decoration:line-through; }
+  .out-of-stock{ font-size:11px; color:var(--kola); font-weight:600; }
+</style>
+</head>
+<body>
+<header class="site">
+  <div class="wrap"><nav>
+    <a href="/" class="store-logo"><span class="mark"></span>Afrishop</a>
+    <div class="nav-links"><a href="/">Shop</a><a href="/orders">My orders</a><a href="/seller/dashboard">Sell on Afrishop</a></div>
+    <div class="nav-right" id="authNavSlot"></div>
+    <a href="/cart" class="icon-btn">🛒<span class="cart-count" id="cartCount" style="display:none;">0</span></a>
+  </nav></div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <h1>Shop Kenyan sellers,<br>all in one place.</h1>
+    <p>Fashion, beauty, food and crafts from independent stores across the country — with M-Pesa checkout built in.</p>
+    <div class="search-row">
+      <input type="text" id="searchInput" placeholder="Search products...">
+      <button class="btn btn-marigold" onclick="loadProducts()">Search</button>
+    </div>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="cat-row" id="catRow"><span class="cat-chip active" data-cat="">All</span></div>
+    <div class="product-grid" id="grid">
+      ${''}
+    </div>
+  </div>
+</section>
+
+<footer class="site">© 2026 Afrishop. Built for Kenyan sellers and shoppers.</footer>
+
+<script src="/js/api.js"></script>
+<script>
+  renderAuthNav(); refreshCartCount();
+  let activeCategory = '';
+
+  async function loadCategories() {
+    try {
+      const cats = await API.get('/categories');
+      document.getElementById('catRow').innerHTML =
+        `<span class="cat-chip active" data-cat="">All</span>` +
+        cats.map(c => `<span class="cat-chip" data-cat="${c.id}">${c.name}</span>`).join('');
+      document.querySelectorAll('.cat-chip').forEach(chip => chip.addEventListener('click', () => {
+        document.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        activeCategory = chip.dataset.cat;
+        loadProducts();
+      }));
+    } catch (e) {}
+  }
+
+  function skeletonGrid() {
+    return Array.from({length:8}).map(() => `<div class="product-card"><div class="skeleton" style="aspect-ratio:1;"></div><div style="padding:14px;"><div class="skeleton" style="height:12px;width:70%;margin-bottom:8px;"></div><div class="skeleton" style="height:12px;width:40%;"></div></div></div>`).join('');
+  }
+
+  async function loadProducts() {
+    const grid = document.getElementById('grid');
+    grid.innerHTML = skeletonGrid();
+    const search = document.getElementById('searchInput').value.trim();
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (activeCategory) params.set('category', activeCategory);
+    try {
+      const products = await API.get('/products?' + params.toString());
+      if (products.length === 0) {
+        grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="ic">🔍</div><h3>No products found</h3><p>Try a different search term or category.</p></div>`;
+        return;
+      }
+      grid.innerHTML = products.map(p => `
+        <a href="/product?id=${p.id}" class="product-card" style="display:block;">
+          <div class="product-thumb ${p.image ? '' : 'thumb-' + ((p.id % 6) + 1)}" style="${p.image ? `background:none;` : ''}">
+            ${p.image ? `<img src="${p.image}" alt="${p.name}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">` : ''}
+            ${p.sale_price_kes ? '<span class="sale-tag">Sale</span>' : ''}
+          </div>
+          <div class="product-info">
+            <div class="store">${p.store_name}</div>
+            <h3>${p.name}</h3>
+            <div class="price-row">
+              <span class="price">${fmtKES(p.sale_price_kes || p.price_kes)}</span>
+              ${p.sale_price_kes ? `<span class="price-strike">${fmtKES(p.price_kes)}</span>` : ''}
+            </div>
+            ${p.stock > 0 ? '' : '<div class="out-of-stock">Out of stock</div>'}
+          </div>
+        </a>
+      `).join('');
+    } catch (e) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="ic">⚠️</div><h3>Couldn't load products</h3><p>${e.message}</p><button class="btn btn-outline" onclick="loadProducts()">Retry</button></div>`;
+    }
+  }
+
+  document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') loadProducts(); });
+  loadCategories(); loadProducts();
+</script>
+</body>
+</html>
